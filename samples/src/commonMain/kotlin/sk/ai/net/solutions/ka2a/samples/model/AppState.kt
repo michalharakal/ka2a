@@ -1,7 +1,7 @@
 package sk.ai.net.solutions.ka2a.samples.model
 
 import kotlinx.datetime.Clock
-import sk.ai.net.solutions.ka2a.client.model.A2AResponse
+import sk.ai.net.solutions.ka2a.models.A2AResponse
 
 /**
  * Represents the state of the application.

@@ -22,37 +22,19 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import sk.ai.net.solutions.ka2a.client.util.UuidUtil
 
-/**
- * JSON-RPC 2.0 request model.
- */
-@Serializable
-data class JSONRPCRequest(
-    val id: String,
-    @SerialName("jsonrpc") val jsonrpc: String = "2.0",
-    val method: String,
-    val params:
-)
-
-/**
- * JSON-RPC 2.0 response model.
- */
-@Serializable
-data class JSONRPCResponse(
-    val id: String,
-    @SerialName("jsonrpc") val jsonrpc: String,
-    val result: A2AResponse? = null,
-    val error: JSONRPCError? = null
-)
-
-/**
- * JSON-RPC 2.0 error model.
- */
-@Serializable
-data class JSONRPCError(
-    val code: Int,
-    val message: String,
-    val data: String? = null
-)
+// Using model classes from ka2a-models module
+import sk.ai.net.solutions.ka2a.models.A2ARequest
+import sk.ai.net.solutions.ka2a.models.A2AResponse
+import sk.ai.net.solutions.ka2a.models.Destination
+import sk.ai.net.solutions.ka2a.models.Origin
+import sk.ai.net.solutions.ka2a.models.Payload
+import sk.ai.net.solutions.ka2a.models.Status
+import sk.ai.net.solutions.ka2a.models.A2AStatusCode
+import sk.ai.net.solutions.ka2a.models.JsonRpcRequest
+import sk.ai.net.solutions.ka2a.models.JsonRpcResponse
+import sk.ai.net.solutions.ka2a.models.JsonRpcError
+import sk.ai.net.solutions.ka2a.models.toJsonRpcRequest
+import sk.ai.net.solutions.ka2a.models.toA2AResponse
 
 /**
  * Interface for A2A client operations.
@@ -224,21 +206,8 @@ class DefaultA2AClient(
                 }
             }
 
-            // Map A2A action to JSON-RPC method
-            val jsonRpcMethod = when (request.action) {
-                "ping", "discover" -> "tasks/send"
-                "authenticate", "authorize", "transfer" -> "tasks/send"
-                "translate" -> "tasks/send"
-                else -> "tasks/send" // Default to tasks/send for custom actions
-            }
-
-            // Create JSON-RPC request
-            val jsonRpcRequest = JSONRPCRequest(
-                id = request.id,
-                jsonrpc = "2.0",
-                method = jsonRpcMethod,
-                params = request
-            )
+            // Convert A2ARequest to JsonRpcRequest
+            val jsonRpcRequest = request.toJsonRpcRequest()
 
             // Log the request object
             println("Sending JSON-RPC request object: $jsonRpcRequest")
@@ -249,7 +218,7 @@ class DefaultA2AClient(
                 isLenient = true
                 ignoreUnknownKeys = true
                 encodeDefaults = true
-            }.encodeToString(JSONRPCRequest.serializer(), jsonRpcRequest)
+            }.encodeToString(JsonRpcRequest.serializer(), jsonRpcRequest)
             println("Sending JSON-RPC request JSON: $jsonString")
 
             println("Sending request to URL: $destinationUrl")
@@ -267,55 +236,10 @@ class DefaultA2AClient(
             println("Received response body: $responseText")
 
             try {
-                // Try to parse as JSONRPCResponse
-                val jsonRpcResponse = httpResponse.body<JSONRPCResponse>()
-
-                if (jsonRpcResponse.error != null) {
-                    // Handle JSON-RPC error
-                    val errorCode = jsonRpcResponse.error.code
-                    val errorMessage = jsonRpcResponse.error.message
-
-                    println("Received JSON-RPC error: code=$errorCode, message=$errorMessage, data=${jsonRpcResponse.error.data}")
-
-                    // Map JSON-RPC error code to A2A status code
-                    val statusCode = when (errorCode) {
-                        -32600 -> A2AStatusCode.BAD_REQUEST.code // Invalid Request
-                        -32601 -> A2AStatusCode.NOT_FOUND.code   // Method not found
-                        -32602 -> A2AStatusCode.BAD_REQUEST.code // Invalid params
-                        -32603 -> A2AStatusCode.INTERNAL_ERROR.code // Internal error
-                        else -> A2AStatusCode.INTERNAL_ERROR.code
-                    }
-
-                    println("Mapped JSON-RPC error code $errorCode to A2A status code $statusCode")
-
-                    val a2aResponse = A2AResponse(
-                        version = A2A_VERSION,
-                        requestId = request.id,
-                        status = Status(
-                            code = statusCode,
-                            message = "JSON-RPC Error: $errorMessage (code: $errorCode)"
-                        )
-                    )
-
-                    emit(a2aResponse)
-                } else if (jsonRpcResponse.result != null) {
-                    // Handle successful JSON-RPC response
-                    println("Successfully parsed JSON-RPC response with result: ${jsonRpcResponse.result}")
-                    emit(jsonRpcResponse.result)
-                } else {
-                    // Handle empty result
-                    println("JSON-RPC response has no result field, creating default success response")
-                    emit(
-                        A2AResponse(
-                            version = A2A_VERSION,
-                            requestId = request.id,
-                            status = Status(
-                                code = A2AStatusCode.SUCCESS.code,
-                                message = "Success (empty result)"
-                            )
-                        )
-                    )
-                }
+                // Try to parse as JsonRpcResponse
+                val jsonRpcResponse = Json.decodeFromString<JsonRpcResponse>(responseText)
+                val a2aResponse = jsonRpcResponse.toA2AResponse(request.id)
+                emit(a2aResponse)
             } catch (e: Exception) {
                 // If parsing fails, it might be a standard HTTP error response or a JSON-RPC error response
 

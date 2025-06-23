@@ -4,8 +4,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import sk.ai.net.solutions.ka2a.client.model.Destination
-import sk.ai.net.solutions.ka2a.client.model.Payload
+import sk.ai.net.solutions.ka2a.models.Destination
+import sk.ai.net.solutions.ka2a.models.Payload
 
 class A2AClientTest {
 
@@ -41,8 +41,8 @@ class A2AClientTest {
 
         // Verify the request
         assertEquals(DefaultA2AClient.A2A_VERSION, request.version)
-        assertNotNull(request.requestId)
-        assertTrue(request.requestId.isNotEmpty())
+        assertNotNull(request.id)
+        assertTrue(request.id.isNotEmpty())
         assertEquals("test-action", request.action)
         assertEquals("test-app", request.origin.id)
         assertEquals("test-type", request.origin.type)

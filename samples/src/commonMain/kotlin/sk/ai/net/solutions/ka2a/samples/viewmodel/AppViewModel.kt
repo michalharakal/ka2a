@@ -9,10 +9,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import sk.ai.net.solutions.ka2a.client.A2AClient
 import sk.ai.net.solutions.ka2a.client.DefaultA2AClient
-import sk.ai.net.solutions.ka2a.client.model.A2AResponse
-import sk.ai.net.solutions.ka2a.client.model.A2AStatusCode
-import sk.ai.net.solutions.ka2a.client.model.Destination
-import sk.ai.net.solutions.ka2a.client.model.Payload
+import sk.ai.net.solutions.ka2a.models.A2AResponse
+import sk.ai.net.solutions.ka2a.models.A2AStatusCode
+import sk.ai.net.solutions.ka2a.models.Destination
+import sk.ai.net.solutions.ka2a.models.Payload
 import sk.ai.net.solutions.ka2a.samples.model.AppState
 import sk.ai.net.solutions.ka2a.samples.model.LogEntry
 import sk.ai.net.solutions.ka2a.samples.model.LogType

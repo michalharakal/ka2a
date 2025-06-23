@@ -32,6 +32,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            implementation(project(":ka2a-models"))
             implementation(project(":ka2a-client"))
             implementation(compose.runtime)
             implementation(compose.foundation)
