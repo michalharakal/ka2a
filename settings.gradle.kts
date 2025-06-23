@@ -1,4 +1,4 @@
-rootProject.name = "demo"
+rootProject.name = "ka2a"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
@@ -33,3 +33,6 @@ plugins {
 }
 
 include(":ka2a-client")
+include(":ka2a-models")
+include(":samples")
+include(":a2a-server-java")
