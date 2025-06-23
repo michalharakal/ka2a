@@ -6,6 +6,7 @@ import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
@@ -42,10 +43,12 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             // Ktor client dependencies
+            implementation(project(":ka2a-models"))
             implementation("io.ktor:ktor-client-core:${libs.versions.ktor.get()}")
             implementation("io.ktor:ktor-client-content-negotiation:${libs.versions.ktor.get()}")
             implementation("io.ktor:ktor-serialization-kotlinx-json:${libs.versions.ktor.get()}")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${libs.versions.kotlinx.coroutines.get()}")
+            implementation(libs.kotlinx.datetime)
         }
 
         androidMain.dependencies {
