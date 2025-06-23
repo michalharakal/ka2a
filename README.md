@@ -3,6 +3,8 @@ PoC of KMP  based A2A client
 
 https://google-a2a.github.io/A2A/latest/specification/
 
+![Screenshot of the application](screenshot.png)
+
 ## Running the A2A Server
 
 The A2A (Agent-to-Agent) server is bases of google's official A2A sample and is implemented in Java with Spring Boot and provides a translation service. See details to official sample https://a2aprotocol.ai/docs/guide/a2a-java-sample
