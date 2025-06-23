@@ -13,8 +13,11 @@ import com.google.a2a.model.TaskSendParams;
 import com.google.a2a.model.TaskState;
 import com.google.a2a.model.TaskStatus;
 import com.google.a2a.model.TaskStatusUpdateEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,6 +33,8 @@ import java.util.concurrent.CompletableFuture;
  */
 @RestController
 public class A2AController {
+
+    private static final Logger logger = LoggerFactory.getLogger(A2AController.class);
 
     private final A2AServer server;
     private final ObjectMapper objectMapper;
@@ -48,11 +53,15 @@ public class A2AController {
             produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<JSONRPCResponse> handleJsonRpcRequest(@RequestBody JSONRPCRequest request) {
+        logger.info("Received JSON-RPC request: method={}, id={}", request.method(), request.id());
 
         if (!"2.0".equals(request.jsonrpc())) {
+            String errorMessage = "Invalid JSON-RPC version";
+            logger.error("Request error: {}, id={}", errorMessage, request.id());
+
             JSONRPCError error = new JSONRPCError(
                     ErrorCode.INVALID_REQUEST.getValue(),
-                    "Invalid JSON-RPC version",
+                    errorMessage,
                     null
             );
             JSONRPCResponse response = new JSONRPCResponse(
@@ -69,6 +78,9 @@ public class A2AController {
             case "tasks/get" -> server.handleTaskGet(request);
             case "tasks/cancel" -> server.handleTaskCancel(request);
             default -> {
+                String errorMessage = "Method not found: " + request.method();
+                logger.error("Request error: {}, id={}", errorMessage, request.id());
+
                 JSONRPCError error = new JSONRPCError(
                         ErrorCode.METHOD_NOT_FOUND.getValue(),
                         "Method not found",
@@ -83,6 +95,14 @@ public class A2AController {
             }
         };
 
+        // Log response status (success or error)
+        if (response.error() != null) {
+            logger.error("Response error: method={}, id={}, error={}", 
+                request.method(), request.id(), response.error().message());
+        } else {
+            logger.info("Response success: method={}, id={}", request.method(), request.id());
+        }
+
         return ResponseEntity.ok(response);
     }
 
@@ -95,6 +115,7 @@ public class A2AController {
             produces = MediaType.TEXT_EVENT_STREAM_VALUE
     )
     public SseEmitter handleStreamingTask(@RequestBody JSONRPCRequest request) {
+        logger.info("Received streaming request: method={}, id={}", request.method(), request.id());
 
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
 
@@ -102,6 +123,8 @@ public class A2AController {
         CompletableFuture.runAsync(() -> {
             try {
                 if (!"tasks/send".equals(request.method())) {
+                    String errorMessage = "Method not found for streaming: " + request.method();
+                    logger.error("Streaming error: {}, id={}", errorMessage, request.id());
                     sendErrorEvent(emitter, request.id(), ErrorCode.METHOD_NOT_FOUND, "Method not found");
                     return;
                 }
@@ -138,6 +161,8 @@ public class A2AController {
                 JSONRPCResponse taskResponse = server.handleTaskSend(request);
 
                 if (taskResponse.error() != null) {
+                    logger.error("Task processing error: method={}, id={}, error={}", 
+                        request.method(), request.id(), taskResponse.error().message());
                     sendErrorEvent(emitter, request.id(), ErrorCode.INTERNAL_ERROR, taskResponse.error().message());
                     return;
                 }
@@ -165,6 +190,8 @@ public class A2AController {
                 emitter.complete();
 
             } catch (Exception e) {
+                logger.error("Exception during streaming task processing: method={}, id={}, error={}", 
+                    request.method(), request.id(), e.getMessage(), e);
                 sendErrorEvent(emitter, request.id(), ErrorCode.INTERNAL_ERROR, e.getMessage());
             }
         });
@@ -176,8 +203,12 @@ public class A2AController {
      * Get agent card information
      */
     @GetMapping("/.well-known/agent-card")
+    @CrossOrigin(origins = "*", allowedHeaders = "*")
     public ResponseEntity<AgentCard> getAgentCard() {
-        return ResponseEntity.ok(server.getAgentCard());
+        logger.info("Received request for agent card");
+        AgentCard agentCard = server.getAgentCard();
+        logger.info("Returning agent card: name={}", agentCard.name());
+        return ResponseEntity.ok(agentCard);
     }
 
     /**
@@ -192,6 +223,8 @@ public class A2AController {
      */
     private void sendErrorEvent(SseEmitter emitter, Object requestId, ErrorCode code, String message) {
         try {
+            logger.error("Sending error event: id={}, code={}, message={}", requestId, code.getValue(), message);
+
             A2AError error = new A2AError(code, message, null);
             SendTaskStreamingResponse errorResponse = new SendTaskStreamingResponse(
                     requestId,
@@ -207,6 +240,7 @@ public class A2AController {
             emitter.completeWithError(new RuntimeException(message));
 
         } catch (IOException e) {
+            logger.error("Failed to send error event: id={}, error={}", requestId, e.getMessage(), e);
             emitter.completeWithError(e);
         }
     }

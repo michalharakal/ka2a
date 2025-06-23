@@ -2,6 +2,8 @@ package com.google.a2a.server;
 
 import com.google.a2a.model.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,6 +16,8 @@ import java.util.UUID;
  * A2AServer represents an A2A server instance
  */
 public class A2AServer {
+
+    private static final Logger logger = LoggerFactory.getLogger(A2AServer.class);
 
     private final AgentCard agentCard;
     private final TaskHandler handler;
@@ -33,8 +37,10 @@ public class A2AServer {
      * Handle task send request
      */
     public JSONRPCResponse handleTaskSend(JSONRPCRequest request) {
+        logger.info("Processing task send request: id={}", request.id());
         try {
             TaskSendParams params = parseParams(request.params(), TaskSendParams.class);
+            logger.info("Task send parameters: taskId={}", params.id());
 
             // Generate contextId if not provided
             String contextId = UUID.randomUUID().toString();
@@ -65,9 +71,12 @@ public class A2AServer {
             taskHistory.computeIfAbsent(task.id(), k -> new CopyOnWriteArrayList<>())
                       .add(params.message());
 
+            logger.info("Task processed successfully: id={}, taskId={}, status={}", 
+                request.id(), updatedTask.id(), updatedTask.status().state());
             return createSuccessResponse(request.id(), updatedTask);
 
         } catch (Exception e) {
+            logger.error("Error processing task: id={}, error={}", request.id(), e.getMessage(), e);
             return createErrorResponse(request.id(), ErrorCode.INTERNAL_ERROR, e.getMessage());
         }
     }
@@ -76,11 +85,15 @@ public class A2AServer {
      * Handle task query request
      */
     public JSONRPCResponse handleTaskGet(JSONRPCRequest request) {
+        logger.info("Processing task get request: id={}", request.id());
         try {
             TaskQueryParams params = parseParams(request.params(), TaskQueryParams.class);
+            logger.info("Task get parameters: taskId={}, historyLength={}", 
+                params.id(), params.historyLength());
 
             Task task = taskStore.get(params.id());
             if (task == null) {
+                logger.error("Task not found: id={}, taskId={}", request.id(), params.id());
                 return createErrorResponse(request.id(), ErrorCode.TASK_NOT_FOUND, "Task not found");
             }
 
@@ -101,12 +114,16 @@ public class A2AServer {
                     task.metadata()
                 );
 
+                logger.info("Task retrieved with history: id={}, taskId={}, historyLength={}", 
+                    request.id(), task.id(), params.historyLength());
                 return createSuccessResponse(request.id(), taskWithHistory);
             }
 
+            logger.info("Task retrieved: id={}, taskId={}", request.id(), task.id());
             return createSuccessResponse(request.id(), task);
 
         } catch (Exception e) {
+            logger.error("Error retrieving task: id={}, error={}", request.id(), e.getMessage(), e);
             return createErrorResponse(request.id(), ErrorCode.INVALID_REQUEST, "Invalid parameters");
         }
     }
@@ -115,11 +132,14 @@ public class A2AServer {
      * Handle task cancel request
      */
     public JSONRPCResponse handleTaskCancel(JSONRPCRequest request) {
+        logger.info("Processing task cancel request: id={}", request.id());
         try {
             TaskIDParams params = parseParams(request.params(), TaskIDParams.class);
+            logger.info("Task cancel parameters: taskId={}", params.id());
 
             Task task = taskStore.get(params.id());
             if (task == null) {
+                logger.error("Task not found for cancellation: id={}, taskId={}", request.id(), params.id());
                 return createErrorResponse(request.id(), ErrorCode.TASK_NOT_FOUND, "Task not found");
             }
 
@@ -127,6 +147,8 @@ public class A2AServer {
             if (task.status().state() == TaskState.COMPLETED || 
                 task.status().state() == TaskState.CANCELED ||
                 task.status().state() == TaskState.FAILED) {
+                logger.error("Task cannot be canceled: id={}, taskId={}, currentState={}", 
+                    request.id(), params.id(), task.status().state());
                 return createErrorResponse(request.id(), ErrorCode.TASK_NOT_CANCELABLE, "Task cannot be canceled");
             }
 
@@ -150,9 +172,11 @@ public class A2AServer {
 
             taskStore.put(params.id(), canceledTask);
 
+            logger.info("Task canceled successfully: id={}, taskId={}", request.id(), params.id());
             return createSuccessResponse(request.id(), canceledTask);
 
         } catch (Exception e) {
+            logger.error("Error canceling task: id={}, error={}", request.id(), e.getMessage(), e);
             return createErrorResponse(request.id(), ErrorCode.INVALID_REQUEST, "Invalid parameters");
         }
     }
@@ -161,6 +185,7 @@ public class A2AServer {
      * Get agent card information
      */
     public AgentCard getAgentCard() {
+        logger.info("Retrieving agent card: name={}", agentCard.name());
         return agentCard;
     }
 
@@ -168,14 +193,21 @@ public class A2AServer {
      * Get task history
      */
     public List<Message> getTaskHistory(String taskId) {
-        return taskHistory.getOrDefault(taskId, List.of());
+        List<Message> history = taskHistory.getOrDefault(taskId, List.of());
+        logger.info("Retrieved task history: taskId={}, messageCount={}", taskId, history.size());
+        return history;
     }
 
     /**
      * Parse request parameters
      */
     private <T> T parseParams(Object params, Class<T> clazz) throws Exception {
-        return objectMapper.convertValue(params, clazz);
+        try {
+            return objectMapper.convertValue(params, clazz);
+        } catch (Exception e) {
+            logger.error("Error parsing parameters: targetClass={}, error={}", clazz.getSimpleName(), e.getMessage(), e);
+            throw e;
+        }
     }
 
     /**
